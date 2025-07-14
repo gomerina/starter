@@ -22,6 +22,7 @@ import concat from 'gulp-concat'
 import del from 'del'
 import formatHTML from 'gulp-format-html'
 import webp from 'gulp-webp';
+import mediaQueries from 'postcss-sort-media-queries';
 const pathCurrent = process.cwd();
 import pngQuant from 'imagemin-pngquant'
 
@@ -59,10 +60,13 @@ function styles() {
     }))
     .pipe(postCss([
       autoprefixer({
-        grid: 'autoplace',
+        grid: true,
         overrideBrowserslist: ['last 3 versions'],
         cascade: false
       }),
+      mediaQueries({
+        sort: 'desktop-first'
+      })
     ]))
     .pipe(dest('./dist/css/'))
     .pipe(postCss([
@@ -72,13 +76,34 @@ function styles() {
     .pipe(dest('./dist/css/'))
     .pipe(browserSync.stream())
 }
-
+function componentsStyles() {
+  return src(['app/includes/**/style.scss'])
+    .pipe(sassglob())
+    .pipe(sass({
+      'include css': true,
+      outputStyle: 'expanded'
+    }))
+    .pipe(postCss([
+      autoprefixer({
+        grid: true,
+        overrideBrowserslist: ['last 3 versions'],
+        cascade: false
+      }),
+    ]))
+    .pipe(dest('./dist/includes/'))
+    .pipe(postCss([
+      cssnano({ preset: ['default', { discardComments: { removeAll: true } }] })
+    ]))
+    .pipe(browserSync.stream())
+}
 function scripts() {
   return src(['app/js/*.js'])
     .pipe(named())
     .pipe(dest('./dist/js/'))
     .pipe(browserSync.stream())
 }
+
+
 
 function images() {
   return src(['app/img/**/*'])
@@ -105,6 +130,7 @@ function images() {
     ], {
       verbose: true
     }))
+
     .pipe(dest('./dist/img/'))
     .pipe(webp())
     .pipe(dest('./dist/img/webp'))
@@ -123,15 +149,16 @@ async function cleandist() {
 
 function startwatch() {
   gulpWatch(['./app/**/*.pug'], { usePolling: true }, buildPug)
-  gulpWatch(['./app/scss/**/*.scss'], { usePolling: true }, styles)
+  gulpWatch(['./app/scss/**/*.scss', './app/includes/**/*.scss'], { usePolling: true }, styles)
+  gulpWatch(['./app/includes/**/*.scss'], { usePolling: true }, componentsStyles)
   gulpWatch(['./app/js/**/*.js'], { usePolling: true }, scripts)
   gulpWatch(['./app/img/**/*'], { usePolling: true }, images)
   gulpWatch(['./app/fonts/**/*'], { usePolling: true }, fonts)
   gulpWatch(['./dist/**/*.*'], { usePolling: true }).on('change', browserSync.reload)
 }
 
-const build = series(cleandist, parallel(images, scripts, buildPug, styles, fonts))
-const watch = series(parallel(images, scripts, buildPug, styles, fonts), parallel(browsersync, startwatch))
+const build = series(cleandist, parallel(images, scripts, buildPug, styles, componentsStyles, fonts))
+const watch = series(parallel(images, scripts, buildPug, styles, componentsStyles, fonts), parallel(browsersync, startwatch))
 
 
 export { build, watch }
